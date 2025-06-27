@@ -43,7 +43,7 @@ def main():
                             delta_val, gamma_val, vega_val, theta_val, rho_val)
 
     elif option_exercise_type == 'US':
-        print("\n--- Modèle utilisé : Binomial (pour options Américaines - implémentation en cours) ---")
+        print("\n--- Modèle utilisé : Binomial (pour options Américaines) ---")
         # Demander le nombre de pas pour le modèle binomial
         N_steps = 0
         while N_steps <= 0:
@@ -54,23 +54,16 @@ def main():
             except ValueError:
                 print("Entrée invalide. Veuillez entrer un nombre entier.")
 
-        # Calcul avec le modèle Binomial
+        # Calcul avec le modèle Binomial, en passant 'US' comme exercise_type
         try:
-            # IMPORTANT: Notre modèle binomial actuel (binomial_option_pricing) calcule des options européennes. 
-            # Pour les options américaines, il faudra ajouter la logique d'exercice anticipé dans ce modèle dans une phase future.
-            # Pour l'instant, il donnera le prix d'une EU.
-            option_price = binomial_option_pricing(option_type, S, K, T, r, sigma, N_steps)
-            print(f"\n--- Résultats du Modèle Binomial (N={N_steps}) ---")
+            option_price = binomial_option_pricing(option_type, S, K, T, r, sigma, N_steps, exercise_type='US') # <-- Ajout de exercise_type='US'
+            print(f"\n--- Résultats du Modèle Binomial Américain (N={N_steps}) ---")
             print(f"Le prix de l'option {option_type} est : {option_price:.2f} $")
-            
-            # Note: Les Grecs ne sont pas calculés directement par cette implémentation binomiale
         except ValueError as e:
             print(f"Erreur lors du calcul binomial: {e}. Veuillez vérifier vos paramètres.")
-            option_price = 0.0 # Réinitialiser le prix en cas d'erreur
+            option_price = 0.0
 
-    if option_price > 0.0: # Afficher le graphique seulement si le calcul a réussi et le prix est valide
-        # Afficher le graphique du profit/perte net
-        # Le graphique de payoff est toujours le même quelle que soit la méthode de calcul
+    if option_price > 0.0:
         plot_payoff(option_type, S, K, option_price)
 
     print("\nCalcul terminé. Au revoir de Mimir !")
