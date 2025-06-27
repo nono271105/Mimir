@@ -1,151 +1,169 @@
+
 # Mimir : Calculateur d'Options 📈
 
-Mimir est un outil Python interactif pour la valorisation d'options financières. Il permet de calculer le prix d'options de type Call ou Put en utilisant deux modèles :
+**Mimir** est un outil Python interactif pour la valorisation d'options financières.  
+Il permet de calculer le prix d'options de type **Call** ou **Put** en utilisant deux modèles de pricing robustes.
 
-* **Black-Scholes-Merton (BSM)** pour les options européennes.
-* **Modèle Binomial (Cox-Ross-Rubinstein - CRR)** pour les options européennes et américaines.
-
-Il fournit également les "Grecs" pour le modèle BSM, et génère une visualisation du profit/perte net à l'échéance.
+---
 
 ## ✨ Fonctionnalités Clés
 
-* **Choix du modèle de valorisation** selon le type d'option :
+- **Choix du modèle de valorisation** :
+  - **Européenne (Black-Scholes-Merton - BSM)** : calcul avec rendement de dividende continu.
+  - **Américaine (Cox-Ross-Rubinstein - CRR)** : dividendes discrets + exercice anticipé.
+  
+- **Calcul du prix de l'option** (Call ou Put).
 
-  * Européenne (BSM)
-  * Américaine (Binomial CRR)
+- **Grecs (BSM uniquement)** :
+  - Delta (Δ), Gamma (Γ), Vega (ν), Theta (Θ), Rho (Ρ)
 
-* **Calcul du prix de l'option** (Call ou Put)
+- **Gestion des dividendes** :
+  - Dividendes **continus** (BSM)
+  - Dividendes **discrets (1 à 4 par an)** (Binomial)
 
-* **Grecs (modèle BSM uniquement)** :
+- **Validation des entrées** : messages clairs en cas d’erreur (types, valeurs…)
 
-  * Delta (Δ) : Sensibilité au sous-jacent
-  * Gamma (Γ) : Sensibilité du delta
-  * Vega (ν) : Sensibilité à la volatilité
-  * Theta (Θ) : Sensibilité au temps
-  * Rho (Ρ) : Sensibilité au taux sans risque
+- **Graphique** : visualisation du profit/perte net à l'échéance.
 
-* **Visualisation graphique** : Profit/perte net à l'échéance
+- **Interface CLI** : intuitive en ligne de commande.
 
-* **Interface intuitive** : Utilisation en ligne de commande
+---
 
 ## 🛠 Prérequis
 
-Python 3.8+ installé et les bibliothèques suivantes :
+- Python 3.8+
+- Bibliothèques nécessaires :
+  - `numpy`
+  - `scipy`
+  - `matplotlib`
+- Pour le développement :
+  - `black`
+  - `flake8`
 
-* `numpy`
-* `scipy`
-* `matplotlib`
+---
 
 ## 🚀 Installation & Exécution
 
-### 1. Clonez le dépôt
+### 1. Cloner le dépôt
 
 ```bash
 git clone https://github.com/votre_nom_utilisateur/Mimir.git
 cd Mimir
-```
+````
 
-Remplacez `votre_nom_utilisateur` par votre identifiant GitHub si besoin.
+> Remplace `votre_nom_utilisateur` par ton identifiant GitHub.
 
-### 2. Créez un environnement virtuel
+### 2. Créer un environnement virtuel
 
 ```bash
 python -m venv .venv
 ```
 
-**Pour Windows** :
+#### Sous Windows :
 
 ```bash
 .venv\Scripts\activate
 ```
 
-**Pour macOS / Linux** :
+#### Sous macOS / Linux :
 
 ```bash
 source ./.venv/bin/activate
 ```
 
-### 3. Installez les dépendances
+### 3. Installer les dépendances
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Lancez l'application
+### 4. Lancer l'application
 
 ```bash
 python main.py
 ```
 
+---
+
 ## 📘 Mode d'utilisation
 
-L'application se lance en terminal. Suivez les instructions pas à pas :
+Une fois lancé, l’outil te guide pas à pas :
 
-* Type d'option : `EU` pour européenne (BSM), `US` pour américaine (Binomial)
-* Type : `C` pour Call, `P` pour Put
-* Prix spot (S)
-* Prix d'exercice (K)
-* Temps jusqu'à l'échéance (T, en années)
-* Taux sans risque (r)
-* Volatilité (σ)
-* Nombre de pas (N) si option américaine
+* `EU` ou `US` pour le type d’option
+* `C` ou `P` pour Call ou Put
+* S, K, T, r, sigma…
+* **BSM** : q (dividende continu)
+* **CRR** : N, D (montant), T\_div (date)
 
-## 📅 Exemple : Option Européenne
+---
 
-```bash
-Bienvenue dans Mimir : Le Calculateur d'Options
-Quel type d'option souhaitez-vous calculer ? (EU pour Européenne, US pour Américaine) : EU
-Voulez-vous calculer le prix d'une option Call (C) ou Put (P) ? C
-Entrez le prix spot actuel (S) : 100
-Entrez le prix d'exercice (K) : 105
-Entrez le temps jusqu'à l'échéance en années (T) : 1
-Entrez le taux d'intérêt sans risque (r) : 0.045
-Entrez la volatilité (sigma) : 0.2
-```
+## 🧪 Exemples d’utilisation
 
-Affichage :
-
-```
---- Modèle utilisé : Black-Scholes-Merton (BSM) ---
-Prix de l'option Call : 6.00 $
-d1 = 0.2647
-d2 = 0.0647
-Delta = 0.6044
-Gamma = 0.0187
-Vega = 29.84
-Theta = -0.0090
-Rho = 0.4907
-```
-
-Un graphique du PnL est généré automatiquement.
-
-## 📅 Exemple : Option Américaine
+### Exemple 1 – Option Européenne (Call) avec dividende continu
 
 ```bash
 Bienvenue dans Mimir : Le Calculateur d'Options
-Quel type d'option souhaitez-vous calculer ? (EU pour Européenne, US pour Américaine) : US
-Voulez-vous calculer le prix d'une option Call (C) ou Put (P) ? P
-Entrez le prix spot actuel (S) : 90
-Entrez le prix d'exercice (K) : 100
-Entrez le temps jusqu'à l'échéance en années (T) : 0.5
-Entrez le taux d'intérêt sans risque (r) : 0.05
-Entrez la volatilité (sigma) : 0.2
-Entrez le nombre de pas (N) : 500
+Quel type d'option ? (EU/US) : EU
+Option Call ou Put ? (C/P) : C
+S = 100
+K = 105
+T = 1
+r = 0.045
+sigma = 0.2
+q = 0.01
 ```
 
-Affichage :
+```
+--- Résultats Black-Scholes ---
+Prix : 5.48 $
+d1 = 0.2247 | d2 = 0.0247
+Delta : 0.5367 | Vega : 29.35 | Theta : -0.0108
+```
+
+➡️ Un graphique est généré automatiquement.
+
+---
+
+### Exemple 2 – Option Américaine (Put) avec dividende discret
+
+```bash
+Bienvenue dans Mimir : Le Calculateur d'Options
+Type : US
+Type d'option : P
+S = 100 | K = 100 | T = 1 | r = 0.05 | sigma = 0.2
+Nombre de pas : 500
+Dividendes ? oui
+Nombre : 1
+Montant D1 = 2
+T_div1 = 0.9
+```
 
 ```
---- Modèle utilisé : Binomial (CRR) ---
-Prix de l'option Put : 10.67 $
+--- Résultats Binomial Américain ---
+Prix de l’option Put : 6.64 $
 ```
 
-Un graphique du PnL est généré automatiquement.
+➡️ Graphique généré automatiquement.
 
-## 🏐 Prochaines évolutions
+---
 
-* Gestion des dividendes
-* Options exotiques (barrières, asiatiques...)
-* Simulation de Monte Carlo
-* Grecs pour le modèle Binomial
-* Interface graphique (GUI)
+## 📈 Feuille de route
+
+### 🔧 Code
+
+* Support complet des dividendes discrets multiples (en cours)
+* Robustesse accrue des entrées utilisateur
+
+### 📊 Modèles
+
+* Monte Carlo pour options exotiques (barrière, asiatique)
+* Volatilité implicite non constante (surface de vol)
+* Implémentation partielle en Rust pour accélérer les calculs
+
+### 🖥 Interface & distribution
+
+* GUI (Tkinter)
+* Packaging Python
+* Tests unitaires avec `pytest`
+
+---
