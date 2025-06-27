@@ -1,10 +1,11 @@
-def get_user_inputs():
+# src/ui/cli_interface.py
+def get_user_inputs_common(): # Renommée pour indiquer "inputs communs"
     """
-    Demande à l'utilisateur les paramètres nécessaires pour le calcul de l'option.
+    Demande à l'utilisateur les paramètres communs nécessaires pour le calcul de l'option.
     Effectue une validation de base des entrées.
 
     Returns:
-        dict: Un dictionnaire contenant tous les paramètres valides.
+        dict: Un dictionnaire contenant les paramètres valides communs.
     """
     params = {}
 
@@ -49,9 +50,6 @@ def get_user_inputs():
     while True:
         try:
             r = float(input("Entrez le taux d'intérêt sans risque (r, ex: 0.045 pour 4.5%) : "))
-            # Taux peut être négatif dans certains contextes, mais pour BSM simple on peut le limiter
-            # if r < 0:
-            #     raise ValueError("Le taux d'intérêt sans risque ne peut pas être négatif dans ce modèle.")
             params['r'] = r
             break
         except ValueError:
@@ -66,5 +64,6 @@ def get_user_inputs():
             break
         except ValueError:
             print("Entrée invalide. Veuillez entrer un nombre positif ou nul pour la volatilité.")
-
+            
+            
     return params
