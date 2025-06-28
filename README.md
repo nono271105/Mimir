@@ -1,4 +1,7 @@
-<img src="https://raw.githubusercontent.com/nono271105/Mimir/main/logo.png" alt="Logo de Mimir" width="300">
+<div align="center">
+  <img src="https://raw.githubusercontent.com/nono271105/Mimir/main/logo.png" alt="Logo de Mimir" width="400">
+</div>
+
 
 # Mimir : Calculateur d'Options 📈
 
