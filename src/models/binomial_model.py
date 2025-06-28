@@ -64,7 +64,7 @@ def binomial_option_pricing(
     for i in range(1, N + 1):  # Pour chaque pas de temps
         # Vérifier si un dividende est payé à ce pas 'i' (ou juste avant)
         current_dividend_amount = 0.0
-        
+
         S_tree_before_dividend_at_step_i = np.zeros(i + 1)
 
         for j in range(i + 1):  # Pour chaque nœud à ce pas
@@ -77,9 +77,7 @@ def binomial_option_pricing(
 
         # Apply dividend adjustments if any dividend ex-date falls within this step interval (or at this step's end)
         for div_step_idx, div_amount in dividend_steps:
-            if (
-                div_step_idx == i - 1
-            ):  
+            if div_step_idx == i - 1:
                 for j in range(i + 1):
                     S_tree[i, j] = max(
                         0, S_tree_before_dividend_at_step_i[j] - div_amount

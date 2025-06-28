@@ -3,9 +3,20 @@
 import numpy as np
 from numba import njit, prange
 
+
 @njit(parallel=True)
-def generate_heston_paths(S0: float, V0: float, kappa: float, theta: float, xi: float,
-                          rho: float, T: float, r: float, N_steps: int, N_simulations: int):
+def generate_heston_paths(
+    S0: float,
+    V0: float,
+    kappa: float,
+    theta: float,
+    xi: float,
+    rho: float,
+    T: float,
+    r: float,
+    N_steps: int,
+    N_simulations: int,
+):
     """
     Génère des chemins de prix de sous-jacent (S) et de variance (V)
     selon le modèle de Heston, optimisé avec Numba.
@@ -54,10 +65,12 @@ def generate_heston_paths(S0: float, V0: float, kappa: float, theta: float, xi: 
             # Schéma d'Euler pour la variance (V_t)
             dV = kappa * (theta - V_t) * dt + xi * sqrt_Vt_safe * dW_V_step
             V_next_raw = V_t + dV
-            paths_V[i, j+1] = np.maximum(0.0, V_next_raw) # Troncature pour assurer V >= 0
+            paths_V[i, j + 1] = np.maximum(
+                0.0, V_next_raw
+            )  # Troncature pour assurer V >= 0
 
             # Schéma d'Euler pour le log-prix du sous-jacent (Log-Euler)
             S_next = S_t * np.exp((r - 0.5 * V_t) * dt + sqrt_Vt_safe * dW_S_step)
-            paths_S[i, j+1] = S_next
+            paths_S[i, j + 1] = S_next
 
     return paths_S, paths_V

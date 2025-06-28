@@ -1,7 +1,9 @@
 # mimir/core/monte_carlo_pricer.py
 import numpy as np
 
-def run_monte_carlo(paths: np.ndarray, risk_free_rate: float, T: float, payoff_function, *payoff_args):
+
+def run_monte_carlo(
+    paths: np.ndarray, risk_free_rate: float, T: float, payoff_function, **payoff_kwargs):
     """
     Orchestre la simulation Monte Carlo pour calculer le prix d'une option.
 
@@ -21,7 +23,7 @@ def run_monte_carlo(paths: np.ndarray, risk_free_rate: float, T: float, payoff_f
     payoffs = np.zeros(N_simulations, dtype=np.float64)
 
     for i in range(N_simulations):
-        payoffs[i] = payoff_function(paths[i], *payoff_args)
+        payoffs[i] = payoff_function(paths[i], **payoff_kwargs)
 
     # Calculer la moyenne des payoffs et l'actualiser au temps t=0
     option_price = np.mean(payoffs) * np.exp(-risk_free_rate * T)
