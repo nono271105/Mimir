@@ -4,7 +4,6 @@ import numpy as np
 import cmath # Pour les nombres complexes
 from numba import jit, njit, prange # Pour l'accélération avec Numba
 
-# Utilisation de njit pour la compilation "no-Python mode" pour de meilleures performances
 @njit
 def _heston_char_func_components_numba(phi: float, T: float, r: float, kappa: float, theta: float, sigma: float, rho: float, u_val: float):
     """
