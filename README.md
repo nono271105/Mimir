@@ -1,4 +1,5 @@
-![Logo](https://github.com/nono271105/Mimir/blob/d2f987501b148a818054e105f15e4efc84d1207b/logo.png"Logo du projet")
+![Logo](https://raw.githubusercontent.com/nono271105/Mimir/main/logo.png "Logo du projet")
+
 # Mimir : Calculateur d'Options 📈
 
 **Mimir** est un outil Python interactif pour la valorisation d'options financières.  
