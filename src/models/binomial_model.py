@@ -47,13 +47,6 @@ def binomial_option_pricing(
     S_tree = np.zeros((N + 1, N + 1))
     option_values = np.zeros((N + 1, N + 1))
 
-    # Calcul du prix spot "ajusté" pour les dividendes
-    # Pour les options américaines, il est plus simple de projeter S_0 pour chaque dividende
-    # et ajuster localement les valeurs de l'arbre.
-    # Pour le modèle Binomial CRR, S_0 est le prix du sous-jacent à l'instant t=0.
-    # La gestion des dividendes se fera en ajustant les prix aux noeuds de l'arbre
-    # juste après le détachement de chaque dividende.
-
     # Initialisation du noeud de départ
     S_tree[0, 0] = S
 
@@ -71,20 +64,7 @@ def binomial_option_pricing(
     for i in range(1, N + 1):  # Pour chaque pas de temps
         # Vérifier si un dividende est payé à ce pas 'i' (ou juste avant)
         current_dividend_amount = 0.0
-        # Check if there's a dividend ex-date at or just before this step
-        # Assuming dividend is paid at the end of the step it falls into,
-        # or at step_idx if div_time / dt is exactly step_idx.
-        # For simplicity, we assume dividend is paid *after* the stock moves for this step.
-        # So stock price *before* dividend is S_tree[i-1,j]*u or S_tree[i-1,j]*d.
-        # Then, if a dividend is paid, the stock price drops by D.
-        # The stock price at time (i*dt) is S_i.
         
-        # We need to consider dividends that occur between (i-1)*dt and i*dt.
-        # It's generally handled by looking at dividend times.
-        # The dividend happens *after* the up/down move, at the ex-dividend date.
-        # So we adjust the stock price *at the dividend step*.
-
-        # Store stock prices *before* dividend at this step
         S_tree_before_dividend_at_step_i = np.zeros(i + 1)
 
         for j in range(i + 1):  # Pour chaque nœud à ce pas
@@ -97,20 +77,16 @@ def binomial_option_pricing(
 
         # Apply dividend adjustments if any dividend ex-date falls within this step interval (or at this step's end)
         for div_step_idx, div_amount in dividend_steps:
-            if div_step_idx == i - 1: # The dividend payment falls into the current interval (i-1)*dt to i*dt
-                # This means at the *beginning* of step i, the stock drops by div_amount
-                # Or, more precisely, after the calculation of S_tree[i,j] based on S_tree[i-1,j-1]*u or S_tree[i-1,0]*d
-                # the price then drops by div_amount *at this node*.
-                # This is a common simplification for discrete dividends in binomial trees.
-                
-                # So we apply the dividend adjustment *after* the multiplicative step,
-                # effectively reducing the stock price for the nodes *at* step `i`
-                # (which represents the stock price at time `i*dt` AFTER dividend payment).
+            if (
+                div_step_idx == i - 1
+            ):  
                 for j in range(i + 1):
-                    S_tree[i, j] = max(0, S_tree_before_dividend_at_step_i[j] - div_amount)
-                break # Assuming one dividend per step for simplicity or sort and apply all for this step
-        else: # No dividend at this exact step, just apply normal pricing
-             for j in range(i + 1):
+                    S_tree[i, j] = max(
+                        0, S_tree_before_dividend_at_step_i[j] - div_amount
+                    )
+                break  # Assuming one dividend per step for simplicity or sort and apply all for this step
+        else:  # No dividend at this exact step, just apply normal pricing
+            for j in range(i + 1):
                 S_tree[i, j] = S_tree_before_dividend_at_step_i[j]
 
     # --- Étape 3 : Calcul des valeurs d'option à l'échéance (dernier pas N) ---

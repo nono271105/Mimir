@@ -1,7 +1,9 @@
 # main.py
 from src.models.bsm_model import black_scholes_greeks
 from src.models.binomial_model import binomial_option_pricing
-from src.models.bjerksund_stensland_model import bjerksund_stensland_2002 # Nouvelle importation
+from src.models.bjerksund_stensland_model import (
+    bjerksund_stensland_2002,
+)  # Nouvelle importation
 from src.ui.cli_interface import get_user_inputs_common
 from src.ui.display_results import display_bsm_results, plot_payoff
 
@@ -102,7 +104,11 @@ def main():
             N_steps = 0
             while N_steps <= 0:
                 try:
-                    N_steps = int(input("Entrez le nombre de pas pour le modèle binomial (N > 0) : "))
+                    N_steps = int(
+                        input(
+                            "Entrez le nombre de pas pour le modèle binomial (N > 0) : "
+                        )
+                    )
                     if N_steps <= 0:
                         print("Erreur: Le nombre de pas doit être un entier positif.")
                     else:
@@ -127,22 +133,32 @@ def main():
                             if 0 <= num_dividends <= 4:
                                 break
                             else:
-                                print("Erreur: Le nombre de dividendes doit être entre 0 et 4.")
+                                print(
+                                    "Erreur: Le nombre de dividendes doit être entre 0 et 4."
+                                )
                         except ValueError:
-                            print("Erreur: Entrée invalide. Veuillez entrer un nombre entier.")
+                            print(
+                                "Erreur: Entrée invalide. Veuillez entrer un nombre entier."
+                            )
 
                     for i in range(num_dividends):
                         while True:
                             try:
                                 dividend_amount = float(
-                                    input(f"Entrez le montant du dividende #{i+1} (D, en $) : ")
+                                    input(
+                                        f"Entrez le montant du dividende #{i+1} (D, en $) : "
+                                    )
                                 )
                                 if dividend_amount < 0:
-                                    print("Erreur: Le montant du dividende ne peut pas être négatif.")
+                                    print(
+                                        "Erreur: Le montant du dividende ne peut pas être négatif."
+                                    )
                                     continue
                                 break
                             except ValueError:
-                                print("Erreur: Entrée invalide. Veuillez entrer un nombre.")
+                                print(
+                                    "Erreur: Entrée invalide. Veuillez entrer un nombre."
+                                )
 
                         while True:
                             try:
@@ -152,7 +168,9 @@ def main():
                                     )
                                 )
                                 if dividend_days <= 0:
-                                    print("Erreur: Le nombre de jours doit être positif.")
+                                    print(
+                                        "Erreur: Le nombre de jours doit être positif."
+                                    )
                                     continue
 
                                 dividend_time_in_years = dividend_days / 365.0
@@ -164,9 +182,13 @@ def main():
                                     continue
                                 break
                             except ValueError:
-                                print("Erreur: Entrée invalide. Veuillez entrer un nombre entier de jours.")
+                                print(
+                                    "Erreur: Entrée invalide. Veuillez entrer un nombre entier de jours."
+                                )
 
-                        discrete_dividends.append((dividend_amount, dividend_time_in_years))
+                        discrete_dividends.append(
+                            (dividend_amount, dividend_time_in_years)
+                        )
                     break
                 elif has_dividends == "non":
                     break
