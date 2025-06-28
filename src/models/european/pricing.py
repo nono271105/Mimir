@@ -1,51 +1,74 @@
-# models/european/pricing.py
+# mimir/src/models/european/pricing.py
 import numpy as np
-import cmath # Pour les nombres complexes
-from scipy.integrate import quad # Pour l'intégration numérique
+import cmath # Make sure this import is present at the top
+from scipy.integrate import quad
 
-# Fonction de pricing analytique pour Heston
-def heston_char_function(phi, kappa, theta, xi, rho, V0, r, T, S0):
-    """
-    Fonction caractéristique du modèle de Heston.
-    """
-    # Paramètres intermédiaires pour simplifier
-    a = kappa * theta
-    u = -0.5
-    b = kappa
-
-    # Cas pour les options Call (u=0.5) et Put (u=-0.5)
-    # Ici, nous utilisons les formules pour le log-prix, donc u = -0.5
-    # Pour le calcul de P1 et P2 dans la formule de Heston, u et b changent.
-    # On va définir P1 et P2 séparément pour plus de clarté.
-
-    # D pour P1 et P2
-    d1 = np.sqrt((rho * xi * phi * 1j - b)**2 - xi**2 * (2 * u * phi * 1j - phi**2))
-    d2 = np.sqrt((rho * xi * phi * 1j - b)**2 - xi**2 * (2 * (u + 1) * phi * 1j - phi**2))
-
-    # g pour P1 et P2
-    g1 = (b - rho * xi * phi * 1j + d1) / (b - rho * xi * phi * 1j - d1)
-    g2 = (b - rho * xi * phi * 1j + d2) / (b - rho * xi * phi * 1j - d2)
-
-    # C pour P1 et P2
-    C1 = r * phi * 1j * T + (a / xi**2) * ((b - rho * xi * phi * 1j + d1) * T - 2 * np.log((1 - g1 * np.exp(d1 * T)) / (1 - g1)))
-    C2 = r * phi * 1j * T + (a / xi**2) * ((b - rho * xi * phi * 1j + d2) * T - 2 * np.log((1 - g2 * np.exp(d2 * T)) / (1 - g2)))
-
-    # D pour P1 et P2
-    D1 = (b - rho * xi * phi * 1j + d1) / xi**2 * ((1 - np.exp(d1 * T)) / (1 - g1 * np.exp(d1 * T)))
-    D2 = (b - rho * xi * phi * 1j + d2) / xi**2 * ((1 - np.exp(d2 * T)) / (1 - g2 * np.exp(d2 * T)))
-
-    return np.exp(C1 + D1 * V0 + 1j * phi * np.log(S0)), np.exp(C2 + D2 * V0 + 1j * phi * np.log(S0))
+# ... (rest of your imports and calculate_T_from_expiration function) ...
 
 
+# Function characteristic of the Heston model (used for P1 and P2)
+def heston_char_function(phi, kappa, theta, xi, rho, V0, r, T, S0, u_param):
+    alpha = u_param
+
+    # Terme complexe discriminant (gamma)
+    # Protection contre les arguments de sqrt qui rendraient gamma numériquement instable
+    term_inside_sqrt = (kappa - rho * xi * 1j * phi)**2 + xi**2 * (1j * phi * alpha + 1j * phi**2)
+
+    # Use cmath.sqrt for complex square roots for better numerical stability
+    gamma = cmath.sqrt(term_inside_sqrt) 
+
+    # Terme D(phi) - c'est le 'B' de certaines notations
+    num_D = kappa - rho * xi * 1j * phi - gamma
+
+    # Dénominateur de la fraction interne dans A et B (appelons-le G_phi)
+    denom_G_phi = kappa - rho * xi * 1j * phi + gamma
+    epsilon_denom_G = 1e-18 # Small value to avoid division by zero
+    if np.abs(denom_G_phi) < epsilon_denom_G:
+        G_phi = (num_D / epsilon_denom_G) # Fallback if denominator is near zero
+    else:
+        G_phi = num_D / denom_G_phi
+    
+    # Dénominateur principal pour B (term_denom_B)
+    term_denom_B = (1 - G_phi * np.exp(-gamma * T))
+    epsilon_denom_B = 1e-18 # Small value for stability
+    if np.abs(term_denom_B) < epsilon_denom_B:
+        term_denom_B = epsilon_denom_B 
+
+    B = num_D / (xi**2 * term_denom_B) * (1 - np.exp(-gamma * T))
+
+    # Terme A(phi)
+    denom_log_internal = (1 - G_phi)
+    epsilon_log_internal = 1e-18
+    if np.abs(denom_log_internal) < epsilon_log_internal:
+        log_term_A = np.log(term_denom_B / epsilon_log_internal) # Handle near-zero case
+    else:
+        log_term_A = np.log(term_denom_B / denom_log_internal)
+    
+    A = 1j * phi * r * T + (kappa * theta / xi**2) * (num_D * T - 2 * log_term_A)
+    
+    # The final characteristic function
+    return np.exp(A + B * V0)
+
+
+# Integrand for P1 (for a call)
 def integrand_P1(phi, kappa, theta, xi, rho, V0, r, T, S0, K):
-    """Intégrand pour P1 dans la formule de Heston."""
-    char_func_val_P1, _ = heston_char_function(phi, kappa, theta, xi, rho, V0, r, T, S0)
-    return (np.exp(-1j * phi * np.log(K)) * char_func_val_P1).real / (1j * phi)
+    char_func_val = heston_char_function(phi, kappa, theta, xi, rho, V0, r, T, S0, u_param=0.5)
+    if phi == 0:
+        # Limit as phi -> 0. For P1, it's (S0/K) * exp(-rT). For P2, it's 1.
+        # This is a critical point for numerical stability.
+        # More correctly, the limit of (exp(-1j * phi * ln K) * char_func / (1j * phi))
+        # as phi -> 0 is -i * ln(K) * char_func(0) * (1/ (i * 1)) = -ln(K) * char_func(0)
+        # However, the quad function usually handles this limit itself.
+        # For a smooth integrand at 0, 0.0 is often the correct contribution
+        return 0.0 
+    return (np.exp(-1j * phi * np.log(K)) * char_func_val / (1j * phi)).real
 
+# Integrand for P2 (for a call)
 def integrand_P2(phi, kappa, theta, xi, rho, V0, r, T, S0, K):
-    """Intégrand pour P2 dans la formule de Heston."""
-    _, char_func_val_P2 = heston_char_function(phi, kappa, theta, xi, rho, V0, r, T, S0)
-    return (np.exp(-1j * phi * np.log(K)) * char_func_val_P2).real / (1j * phi)
+    char_func_val = heston_char_function(phi, kappa, theta, xi, rho, V0, r, T, S0, u_param=-0.5)
+    if phi == 0:
+        return 0.0
+    return (np.exp(-1j * phi * np.log(K)) * char_func_val / (1j * phi)).real
 
 
 def price_heston_european_option(
@@ -59,45 +82,66 @@ def price_heston_european_option(
     r: float,
     K: float,
     option_type: str,
-    # N_steps et N_simulations ne sont plus nécessaires pour l'analytique
-    # N_steps: int = 252,
-    # N_simulations: int = 100000,
 ) -> float:
-    """
-    Calcule le prix d'une option européenne sous le modèle de Heston via la formule analytique.
-    """
-    # Les lignes de débogage ne sont plus nécessaires, mais vous pouvez les laisser si vous voulez
-    # print(f"DEBUG (pricing_func): Inside price_heston_european_option. File: {__file__}")
-    # print(f"DEBUG (pricing_func): Received r = {r}")
+    
+    # Handle extremely short maturities
+    if T <= 1/365.0: # If T is 1 day or less
+        # Use Black-Scholes for very short maturities or intrinsic value.
+        # For simplicity, for T=0, it's intrinsic value. For very small T, it's close.
+        # This prevents integration issues for T near zero.
+        if option_type == 'C':
+            return max(0, S0 - K)
+        elif option_type == 'P':
+            return max(0, K - S0)
+    
+    # Bornes d'intégration initiales, peuvent être ajustées
+    integration_limit = 200 # Aumenté pour plus de précision
+
+    # Options pour quad - augmenter les limites et réduire les tolérances pour plus de précision
+    quad_options = {
+        'limit': 5000,  # Augmenter le nombre max de sous-intervalles
+        'epsabs': 1e-12, # Tolérance absolue plus stricte
+        'epsrel': 1e-12  # Tolérance relative plus stricte
+    }
 
     # Calcul de P1
-    integral_P1, _ = quad(
-        integrand_P1,
-        0,
-        np.inf, # Limite d'intégration jusqu'à l'infini
-        args=(kappa, theta, xi, rho, V0, r, T, S0, K),
-        limit=1000 # Augmenter le nombre de points pour l'intégration
-    )
-    P1 = 0.5 + (1 / np.pi) * integral_P1
+    try:
+        integral_P1, _ = quad(
+            integrand_P1,
+            0,
+            integration_limit, 
+            args=(kappa, theta, xi, rho, V0, r, T, S0, K),
+            **quad_options
+        )
+        P1 = 0.5 + (1 / np.pi) * integral_P1
+    except Exception as e:
+        # If integration fails, return a value that strongly penalizes (or makes it clear it failed)
+        # print(f"DEBUG: P1 integration failed for K={K}, T={T}. Error: {e}")
+        return 0.0 # Returning 0.0 will cause high error and push optimizer away
 
     # Calcul de P2
-    integral_P2, _ = quad(
-        integrand_P2,
-        0,
-        np.inf,
-        args=(kappa, theta, xi, rho, V0, r, T, S0, K),
-        limit=1000
-    )
-    P2 = 0.5 + (1 / np.pi) * integral_P2
+    try:
+        integral_P2, _ = quad(
+            integrand_P2,
+            0,
+            integration_limit,
+            args=(kappa, theta, xi, rho, V0, r, T, S0, K),
+            **quad_options
+        )
+        P2 = 0.5 + (1 / np.pi) * integral_P2
+    except Exception as e:
+        # print(f"DEBUG: P2 integration failed for K={K}, T={T}. Error: {e}")
+        return 0.0 # Returning 0.0 will cause high error and push optimizer away
 
+
+    # Formule de pricing pour Call et Put
     if option_type == "C":
         option_price = S0 * P1 - K * np.exp(-r * T) * P2
     elif option_type == "P":
-        # Formule de parité Put-Call pour les options européennes
-        # P = C - S0 + K * exp(-rT)
+        # Put-Call Parity
         call_price = S0 * P1 - K * np.exp(-r * T) * P2
         option_price = call_price - S0 + K * np.exp(-r * T)
     else:
         raise ValueError("option_type doit être 'C' (Call) ou 'P' (Put).")
 
-    return option_price
+    return max(0, option_price)
