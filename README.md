@@ -1,4 +1,4 @@
-![Logo](https://raw.githubusercontent.com/nono271105/Mimir/main/logo.png "Logo du projet")
+![Logo](https://raw.githubusercontent.com/nono271105/Mimir/refs/heads/main/logo.png "Logo du projet")
 
 # Mimir : Calculateur d'Options 📈
 
