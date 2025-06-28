@@ -10,13 +10,11 @@ def binomial_option_pricing(
     sigma: float,
     N: int,
     exercise_type: str = "EU",
-    dividend_yield: float = 0.0,
-    dividend_amount: float = 0.0,
-    dividend_time: float = -1.0,
+    discrete_dividends: list = None,  # Changé pour une liste de (montant, temps)
 ):
     """
     Calcule le prix d'une option européenne ou américaine en utilisant le modèle binomial.
-    Gère les dividendes discrets pour les options américaines.
+    Gère les dividendes discrets multiples pour les options américaines.
 
     Paramètres:
     option_type (str): 'C' pour Call, 'P' pour Put.
@@ -27,66 +25,93 @@ def binomial_option_pricing(
     sigma (float): Volatilité annuelle du sous-jacent.
     N (int): Nombre de pas dans l'arbre binomial.
     exercise_type (str): 'EU' pour Européenne, 'US' pour Américaine.
-    dividend_yield (float): Rendement continu des dividendes (pour compatibilité, non utilisé pour dividendes discrets).
-    dividend_amount (float): Montant du dividende discret (en devise, ex: $2).
-    dividend_time (float): Temps jusqu'au dividende (en années, doit être > 0 et < T).
+    discrete_dividends (list): Liste de tuples (montant_dividende, temps_dividende).
+                               Ex: [(D1, T_div1), (D2, T_div2)]. Temps en années.
 
     Retourne:
     float: Le prix de l'option.
     """
-    if T <= 0 or sigma <= 0 or N <= 0:
-        if T == 0:
-            if option_type == "C":
-                return max(0, S - K)
-            else:  # Put
-                return max(0, K - S)
-        else:
-            raise ValueError("T, sigma et N doivent être positifs.")
+    if discrete_dividends is None:
+        discrete_dividends = []
 
-    if S <= 0 or K <= 0:
-        raise ValueError("S et K doivent être positifs.")
+    # Sort the dividends by time, crucial for correct handling
+    discrete_dividends.sort(key=lambda x: x[1])
 
-    dt = T / N  # Durée de chaque pas de temps
+    dt = T / N  # Durée de chaque pas
     u = np.exp(sigma * np.sqrt(dt))  # Facteur de hausse
     d = 1 / u  # Facteur de baisse
-
-    # Calculer le taux d'intérêt sans risque effectif par pas
-    # Avec dividendes discrets, nous n'utilisons PAS le dividend_yield pour ajuster r
-    # r_effective_per_step = np.exp(r * dt)
-    # Le probabilité neutre au risque doit prendre en compte r
-    p = (np.exp(r * dt) - d) / (u - d)  # Probabilité de hausse
+    p = (np.exp(r * dt) - d) / (u - d)  # Probabilité neutre au risque
     q = 1 - p  # Probabilité de baisse
 
-    # Initialisation de l'arbre des prix du sous-jacent
-    # S_tree[i][j] = prix du sous-jacent au pas i, chemin j (0 à i)
+    # --- Étape 1 : Initialisation de l'arbre des prix du sous-jacent ---
     S_tree = np.zeros((N + 1, N + 1))
-
-    # Initialisation de l'arbre des valeurs d'option
-    # option_values[i][j] = valeur de l'option au pas i, chemin j (0 à i)
     option_values = np.zeros((N + 1, N + 1))
 
-    # --- Étape 1 : Construction de l'arbre des prix du sous-jacent ---
-    for i in range(N + 1):  # i représente le numéro de pas (de 0 à N)
-        for j in range(
-            i + 1
-        ):  # j représente le nombre de mouvements "vers le haut" (de 0 à i)
-            S_tree[i, j] = S * (u ** (j)) * (d ** (i - j))
+    # Calcul du prix spot "ajusté" pour les dividendes
+    # Pour les options américaines, il est plus simple de projeter S_0 pour chaque dividende
+    # et ajuster localement les valeurs de l'arbre.
+    # Pour le modèle Binomial CRR, S_0 est le prix du sous-jacent à l'instant t=0.
+    # La gestion des dividendes se fera en ajustant les prix aux noeuds de l'arbre
+    # juste après le détachement de chaque dividende.
 
-    # --- Étape 2 : Ajustement de l'arbre pour les dividendes discrets ---
-    # Seulement si un dividende discret est spécifié et pertinent (temps > 0 et < T)
-    if dividend_amount > 0 and 0 < dividend_time < T:
-        # Trouver le pas le plus proche du temps du dividende
-        # Le dividende est payé entre le pas (div_step-1) et div_step
-        # Nous réduisons les prix à partir du pas div_step
-        div_step = int(dividend_time / dt)
+    # Initialisation du noeud de départ
+    S_tree[0, 0] = S
 
-        # Ajuster les prix du sous-jacent à partir du pas du dividende
-        for i in range(
-            div_step, N + 1
-        ):  # À partir du pas du dividende jusqu'à l'échéance
-            for j in range(i + 1):
-                # Assurez-vous que le prix ne devient pas négatif
-                S_tree[i, j] = max(0, S_tree[i, j] - dividend_amount)
+    # Points dans le temps où les dividendes sont payés (en termes de 'pas' de l'arbre)
+    # Convertir les temps de dividende en indices de pas pour l'arbre
+    dividend_steps = []
+    for div_amount, div_time in discrete_dividends:
+        # Trouver le pas immédiatement après ou au moment du dividende
+        step_idx = int(np.floor(div_time / dt))
+        if step_idx >= N:  # Dividende est à l'échéance ou après
+            continue
+        dividend_steps.append((step_idx, div_amount))
+
+    # Construire l'arbre des prix
+    for i in range(1, N + 1):  # Pour chaque pas de temps
+        # Vérifier si un dividende est payé à ce pas 'i' (ou juste avant)
+        current_dividend_amount = 0.0
+        # Check if there's a dividend ex-date at or just before this step
+        # Assuming dividend is paid at the end of the step it falls into,
+        # or at step_idx if div_time / dt is exactly step_idx.
+        # For simplicity, we assume dividend is paid *after* the stock moves for this step.
+        # So stock price *before* dividend is S_tree[i-1,j]*u or S_tree[i-1,j]*d.
+        # Then, if a dividend is paid, the stock price drops by D.
+        # The stock price at time (i*dt) is S_i.
+        
+        # We need to consider dividends that occur between (i-1)*dt and i*dt.
+        # It's generally handled by looking at dividend times.
+        # The dividend happens *after* the up/down move, at the ex-dividend date.
+        # So we adjust the stock price *at the dividend step*.
+
+        # Store stock prices *before* dividend at this step
+        S_tree_before_dividend_at_step_i = np.zeros(i + 1)
+
+        for j in range(i + 1):  # Pour chaque nœud à ce pas
+            if j == 0:
+                # Premier noeud à ce pas (tout en bas)
+                S_tree_before_dividend_at_step_i[j] = S_tree[i - 1, 0] * d
+            else:
+                # Autres noeuds
+                S_tree_before_dividend_at_step_i[j] = S_tree[i - 1, j - 1] * u
+
+        # Apply dividend adjustments if any dividend ex-date falls within this step interval (or at this step's end)
+        for div_step_idx, div_amount in dividend_steps:
+            if div_step_idx == i - 1: # The dividend payment falls into the current interval (i-1)*dt to i*dt
+                # This means at the *beginning* of step i, the stock drops by div_amount
+                # Or, more precisely, after the calculation of S_tree[i,j] based on S_tree[i-1,j-1]*u or S_tree[i-1,0]*d
+                # the price then drops by div_amount *at this node*.
+                # This is a common simplification for discrete dividends in binomial trees.
+                
+                # So we apply the dividend adjustment *after* the multiplicative step,
+                # effectively reducing the stock price for the nodes *at* step `i`
+                # (which represents the stock price at time `i*dt` AFTER dividend payment).
+                for j in range(i + 1):
+                    S_tree[i, j] = max(0, S_tree_before_dividend_at_step_i[j] - div_amount)
+                break # Assuming one dividend per step for simplicity or sort and apply all for this step
+        else: # No dividend at this exact step, just apply normal pricing
+             for j in range(i + 1):
+                S_tree[i, j] = S_tree_before_dividend_at_step_i[j]
 
     # --- Étape 3 : Calcul des valeurs d'option à l'échéance (dernier pas N) ---
     for j in range(N + 1):
@@ -114,10 +139,10 @@ def binomial_option_pricing(
             else:  # option_type == 'P'
                 intrinsic_value = max(0, K - S_tree[i, j])
 
-            # Décision d'exercice pour les options Américaines
+            # Décision d'exercice (pour options Américaines)
             if exercise_type == "US":
                 option_values[i, j] = max(continuation_value, intrinsic_value)
-            else:  # Européenne (pas d'exercice anticipé)
+            else:  # Pour les options Européennes, pas d'exercice anticipé
                 option_values[i, j] = continuation_value
 
-    return option_values[0, 0]  # Le prix de l'option au temps t=0
+    return option_values[0, 0]

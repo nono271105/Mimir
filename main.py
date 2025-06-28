@@ -1,7 +1,7 @@
 # main.py
 from src.models.bsm_model import black_scholes_greeks
 from src.models.binomial_model import binomial_option_pricing
-from src.ui.cli_interface import get_user_inputs_common  # Renommé
+from src.ui.cli_interface import get_user_inputs_common
 from src.ui.display_results import display_bsm_results, plot_payoff
 
 
@@ -22,7 +22,7 @@ def main():
             print("Choix invalide. Veuillez entrer 'EU' ou 'US'.")
 
     # 2. Demander les paramètres communs de l'option
-    params = get_user_inputs_common()  # Appel à la fonction renommée
+    params = get_user_inputs_common()
 
     # Extraire les paramètres du dictionnaire
     option_type = params["option_type"]  # C ou P
@@ -33,9 +33,9 @@ def main():
     sigma = params["sigma"]
 
     # Initialisation des paramètres de dividendes
-    dividend_yield = 0.0  # Pour BSM
-    dividend_amount = 0.0  # Pour Binomial (discret)
-    dividend_time = -1.0  # Pour Binomial (discret)
+    dividend_yield = 0.0  # Pour BSM (rendement continu)
+    # Changement ici : discrete_dividends est une liste de tuples (montant, temps)
+    discrete_dividends = []
 
     option_price = 0.0  # Initialisation du prix de l'option
 
@@ -54,7 +54,7 @@ def main():
                 else:
                     break
             except ValueError:
-                print("Entrée invalide. Veuillez entrer un nombre.")
+                print("Erreur: Entrée invalide. Veuillez entrer un nombre.")
 
         # Calcul avec Black-Scholes, en passant le rendement des dividendes
         (
@@ -92,57 +92,80 @@ def main():
         N_steps = 0
         while N_steps <= 0:
             try:
-                N_steps = int(
-                    input("Entrez le nombre de pas pour le modèle binomial (N) : ")
-                )
+                N_steps = int(input("Entrez le nombre de pas pour le modèle binomial (N > 0) : "))
                 if N_steps <= 0:
-                    print("Le nombre de pas doit être un entier positif.")
+                    print("Erreur: Le nombre de pas doit être un entier positif.")
                 else:
                     break
             except ValueError:
-                print("Entrée invalide. Veuillez entrer un nombre entier.")
+                print("Erreur: Entrée invalide. Veuillez entrer un nombre entier.")
 
-        # --- Demander des informations sur les dividendes DISCRETS SPÉCIFIQUEMENT pour le modèle Binomial ---
+        # --- Demander des informations sur les dividendes discrets pour le modèle Binomial ---
         while True:
             has_dividends = input(
-                "Y a-t-il un dividende discret à prendre en compte pour l'option Américaine ? (oui/non) : "
+                "Y a-t-il des dividendes discrets à prendre en compte pour l'option Américaine ? (oui/non) : "
             ).lower()
             if has_dividends == "oui":
+                num_dividends = 0
                 while True:
                     try:
-                        dividend_amount = float(
-                            input("Entrez le montant du dividende discret ($) : ")
-                        )
-                        if dividend_amount < 0:
-                            print("Le montant du dividende ne peut pas être négatif.")
-                        else:
-                            break
-                    except ValueError:
-                        print("Entrée invalide. Veuillez entrer un nombre.")
-
-                while True:
-                    try:
-                        # Le temps du dividende doit être avant l'échéance mais après l'instant t=0
-                        dividend_time = float(
+                        num_dividends = int(
                             input(
-                                f"Entrez le temps jusqu'au dividende (T_div, doit être > 0 et < {T}) : "
+                                "Combien de dividendes discrets (max 4, 0 pour annuler) ? "
                             )
                         )
-                        if not (0 < dividend_time < T):
-                            print(
-                                f"Le temps jusqu'au dividende doit être strictement entre 0 et le temps à l'échéance ({T})."
-                            )
-                        else:
+                        if 0 <= num_dividends <= 4:
                             break
+                        else:
+                            print("Erreur: Le nombre de dividendes doit être entre 0 et 4.")
                     except ValueError:
-                        print("Entrée invalide. Veuillez entrer un nombre.")
-                break  # Sortir de la boucle has_dividends
+                        print("Erreur: Entrée invalide. Veuillez entrer un nombre entier.")
+
+                for i in range(num_dividends):
+                    while True:
+                        try:
+                            dividend_amount = float(
+                                input(f"Entrez le montant du dividende #{i+1} (D, en $) : ")
+                            )
+                            if dividend_amount < 0:
+                                print("Erreur: Le montant du dividende ne peut pas être négatif.")
+                                continue
+                            break
+                        except ValueError:
+                            print("Erreur: Entrée invalide. Veuillez entrer un nombre.")
+
+                    while True:
+                        try:
+                            
+                            dividend_days = int(
+                                input(
+                                    f"Dans combien de jours aura lieu le dividende #{i+1} ? "
+                                )
+                            )
+                            if dividend_days <= 0:
+                                print("Erreur: Le nombre de jours doit être positif.")
+                                continue
+                            
+                            
+                            dividend_time_in_years = dividend_days / 365.0 
+
+                            if not (0 < dividend_time_in_years < T): 
+                                print(
+                                    f"Erreur: Le dividende doit avoir lieu STRICTEMENT entre la date d'aujourd'hui et la date d'échéance ({T*365:.0f} jours)."
+                                )
+                                continue
+                            break
+                        except ValueError:
+                            print("Erreur: Entrée invalide. Veuillez entrer un nombre entier de jours.")
+                    
+                    discrete_dividends.append((dividend_amount, dividend_time_in_years))
+                break  
             elif has_dividends == "non":
-                break  # Sortir de la boucle has_dividends
+                break 
             else:
                 print("Réponse invalide. Veuillez répondre 'oui' ou 'non'.")
 
-        # Calcul avec le modèle Binomial, en passant 'US' et les paramètres de dividende discret
+        # Calcul avec le modèle Binomial, en passant 'US' et les paramètres de dividendes discrets
         try:
             option_price = binomial_option_pricing(
                 option_type,
@@ -153,9 +176,7 @@ def main():
                 sigma,
                 N_steps,
                 exercise_type="US",
-                dividend_yield=0.0,  # Rendement continu non pertinent pour dividendes discrets, mais gardé pour la signature
-                dividend_amount=dividend_amount,
-                dividend_time=dividend_time,
+                discrete_dividends=discrete_dividends,  # Passer la liste des dividendes
             )
             print(f"\n--- Résultats du Modèle Binomial Américain (N={N_steps}) ---")
             print(f"Le prix de l'option {option_type} est : {option_price:.2f} $")
