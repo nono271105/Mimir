@@ -1,74 +1,119 @@
 # mimir/src/models/european/pricing.py
+
 import numpy as np
-import cmath # Make sure this import is present at the top
-from scipy.integrate import quad
+import cmath  # Pour les nombres complexes
+from scipy.integrate import quad  # Pour l'intégration numérique
 
-# ... (rest of your imports and calculate_T_from_expiration function) ...
-
+# Pas besoin de calculate_T_from_expiration ici, il est géré en amont.
 
 # Function characteristic of the Heston model (used for P1 and P2)
 def heston_char_function(phi, kappa, theta, xi, rho, V0, r, T, S0, u_param):
     alpha = u_param
 
+    # Defensive check for xi and T
+    # If xi or T are too small, the model can become degenerate or numerically unstable.
+    if xi <= 1e-6 or T <= 1e-6:
+        return 0.0 + 0.0j # Return complex zero to penalize problematic parameters
+
     # Terme complexe discriminant (gamma)
-    # Protection contre les arguments de sqrt qui rendraient gamma numériquement instable
     term_inside_sqrt = (kappa - rho * xi * 1j * phi)**2 + xi**2 * (1j * phi * alpha + 1j * phi**2)
+    
+    # Ensure term_inside_sqrt is not extremely small or problematic before sqrt
+    # Add a small complex epsilon to prevent sqrt(0) or near-zero issues
+    if np.abs(term_inside_sqrt) < 1e-15:
+        gamma = cmath.sqrt(1e-15 + 0j) 
+    else:
+        gamma = cmath.sqrt(term_inside_sqrt) 
 
-    # Use cmath.sqrt for complex square roots for better numerical stability
-    gamma = cmath.sqrt(term_inside_sqrt) 
-
-    # Terme D(phi) - c'est le 'B' de certaines notations
+    # Terme D(phi)
     num_D = kappa - rho * xi * 1j * phi - gamma
 
-    # Dénominateur de la fraction interne dans A et B (appelons-le G_phi)
     denom_G_phi = kappa - rho * xi * 1j * phi + gamma
-    epsilon_denom_G = 1e-18 # Small value to avoid division by zero
-    if np.abs(denom_G_phi) < epsilon_denom_G:
-        G_phi = (num_D / epsilon_denom_G) # Fallback if denominator is near zero
+    # Handle near-zero denominator for G_phi
+    if np.abs(denom_G_phi) < 1e-18:
+        G_phi = (num_D / 1e-18) 
     else:
         G_phi = num_D / denom_G_phi
     
     # Dénominateur principal pour B (term_denom_B)
-    term_denom_B = (1 - G_phi * np.exp(-gamma * T))
-    epsilon_denom_B = 1e-18 # Small value for stability
-    if np.abs(term_denom_B) < epsilon_denom_B:
-        term_denom_B = epsilon_denom_B 
+    exp_gamma_T = cmath.exp(-gamma * T) # Use cmath.exp for complex numbers
+    term_denom_B = (1 - G_phi * exp_gamma_T)
+    
+    # Handle near-zero term_denom_B
+    if np.abs(term_denom_B) < 1e-18:
+        term_denom_B = 1e-18 + 0j # Ensure it's complex if pushing
 
-    B = num_D / (xi**2 * term_denom_B) * (1 - np.exp(-gamma * T))
+    # Ensure xi is not too small before division
+    if xi**2 < 1e-18:
+        return 0.0 + 0.0j # Avoid division by near zero xi^2
+
+    B = num_D / (xi**2 * term_denom_B) * (1 - exp_gamma_T)
 
     # Terme A(phi)
     denom_log_internal = (1 - G_phi)
-    epsilon_log_internal = 1e-18
-    if np.abs(denom_log_internal) < epsilon_log_internal:
-        log_term_A = np.log(term_denom_B / epsilon_log_internal) # Handle near-zero case
+    # Handle near-zero denom_log_internal
+    if np.abs(denom_log_internal) < 1e-18:
+        denom_log_internal = 1e-18 + 0j
+
+    # Ensure argument to cmath.log is not problematic
+    log_arg = term_denom_B / denom_log_internal
+    if np.abs(log_arg) < 1e-18: # Avoid log(0)
+        log_term_A = cmath.log(1e-18) 
     else:
-        log_term_A = np.log(term_denom_B / denom_log_internal)
+        log_term_A = cmath.log(log_arg)
     
     A = 1j * phi * r * T + (kappa * theta / xi**2) * (num_D * T - 2 * log_term_A)
     
-    # The final characteristic function
-    return np.exp(A + B * V0)
+    # The final characteristic function - ensure finite value before returning
+    result = cmath.exp(A + B * V0) # Use cmath.exp for complex numbers
+    
+    if not np.isfinite(result): # If result is inf or NaN
+        return 0.0 + 0.0j # Return a complex zero to penalize
+
+    return result
 
 
 # Integrand for P1 (for a call)
 def integrand_P1(phi, kappa, theta, xi, rho, V0, r, T, S0, K):
     char_func_val = heston_char_function(phi, kappa, theta, xi, rho, V0, r, T, S0, u_param=0.5)
-    if phi == 0:
-        # Limit as phi -> 0. For P1, it's (S0/K) * exp(-rT). For P2, it's 1.
-        # This is a critical point for numerical stability.
-        # More correctly, the limit of (exp(-1j * phi * ln K) * char_func / (1j * phi))
-        # as phi -> 0 is -i * ln(K) * char_func(0) * (1/ (i * 1)) = -ln(K) * char_func(0)
-        # However, the quad function usually handles this limit itself.
-        # For a smooth integrand at 0, 0.0 is often the correct contribution
+    
+    # If char_func_val is not finite (due to previous checks), return 0
+    if not np.isfinite(char_func_val):
+        return 0.0
+    
+    if phi == 0: # Avoid division by zero at phi=0
         return 0.0 
-    return (np.exp(-1j * phi * np.log(K)) * char_func_val / (1j * phi)).real
+        
+    # Ensure (1j * phi) is not near zero
+    if np.abs(phi) < 1e-18:
+        return 0.0
+        
+    term = (cmath.exp(-1j * phi * cmath.log(K)) * char_func_val / (1j * phi)) # Use cmath for complex log
+    
+    if not np.isfinite(term): # If term itself becomes inf or NaN
+        return 0.0
+        
+    return term.real
 
 # Integrand for P2 (for a call)
 def integrand_P2(phi, kappa, theta, xi, rho, V0, r, T, S0, K):
     char_func_val = heston_char_function(phi, kappa, theta, xi, rho, V0, r, T, S0, u_param=-0.5)
+
+    if not np.isfinite(char_func_val):
+        return 0.0
+
     if phi == 0:
         return 0.0
-    return (np.exp(-1j * phi * np.log(K)) * char_func_val / (1j * phi)).real
+        
+    if np.abs(phi) < 1e-18:
+        return 0.0
+
+    term = (cmath.exp(-1j * phi * cmath.log(K)) * char_func_val / (1j * phi)) # Use cmath for complex log
+
+    if not np.isfinite(term):
+        return 0.0
+
+    return term.real
 
 
 def price_heston_european_option(
@@ -84,64 +129,14 @@ def price_heston_european_option(
     option_type: str,
 ) -> float:
     
-    # Handle extremely short maturities
-    if T <= 1/365.0: # If T is 1 day or less
-        # Use Black-Scholes for very short maturities or intrinsic value.
-        # For simplicity, for T=0, it's intrinsic value. For very small T, it's close.
-        # This prevents integration issues for T near zero.
+    # Handle extremely short maturities (increased threshold to 7 days for more robustness)
+    if T <= 7/365.0: 
         if option_type == 'C':
             return max(0, S0 - K)
         elif option_type == 'P':
             return max(0, K - S0)
     
     # Bornes d'intégration initiales, peuvent être ajustées
-    integration_limit = 200 # Aumenté pour plus de précision
+    integration_limit = 200 # Toujours une bonne valeur de départ
 
-    # Options pour quad - augmenter les limites et réduire les tolérances pour plus de précision
-    quad_options = {
-        'limit': 5000,  # Augmenter le nombre max de sous-intervalles
-        'epsabs': 1e-12, # Tolérance absolue plus stricte
-        'epsrel': 1e-12  # Tolérance relative plus stricte
-    }
-
-    # Calcul de P1
-    try:
-        integral_P1, _ = quad(
-            integrand_P1,
-            0,
-            integration_limit, 
-            args=(kappa, theta, xi, rho, V0, r, T, S0, K),
-            **quad_options
-        )
-        P1 = 0.5 + (1 / np.pi) * integral_P1
-    except Exception as e:
-        # If integration fails, return a value that strongly penalizes (or makes it clear it failed)
-        # print(f"DEBUG: P1 integration failed for K={K}, T={T}. Error: {e}")
-        return 0.0 # Returning 0.0 will cause high error and push optimizer away
-
-    # Calcul de P2
-    try:
-        integral_P2, _ = quad(
-            integrand_P2,
-            0,
-            integration_limit,
-            args=(kappa, theta, xi, rho, V0, r, T, S0, K),
-            **quad_options
-        )
-        P2 = 0.5 + (1 / np.pi) * integral_P2
-    except Exception as e:
-        # print(f"DEBUG: P2 integration failed for K={K}, T={T}. Error: {e}")
-        return 0.0 # Returning 0.0 will cause high error and push optimizer away
-
-
-    # Formule de pricing pour Call et Put
-    if option_type == "C":
-        option_price = S0 * P1 - K * np.exp(-r * T) * P2
-    elif option_type == "P":
-        # Put-Call Parity
-        call_price = S0 * P1 - K * np.exp(-r * T) * P2
-        option_price = call_price - S0 + K * np.exp(-r * T)
-    else:
-        raise ValueError("option_type doit être 'C' (Call) ou 'P' (Put).")
-
-    return max(0, option_price)
+    # Options pour
